@@ -136,19 +136,38 @@ _nix_attr_paths () {
     if [[ $cur == *.* ]]; then
         attr_path=${cur%.*}
     fi
-    local prefixed_path=top${attr_path:+.$attr_path}
+
+    # Split on `.` and quote with `"`
+    local -a paths=(${(s,.,)attr_path})
+    paths=(${${paths/%/\"}/#/\"})
 
     local -a result
     result=($(_nix_eval_stdin 2>&1 <<NIX_FILE
         let
-        top_gen = $defexpr;
-        # --file arguments can be a lambda producing a record too
-        top = if builtins.typeOf top_gen == "lambda" then top_gen {} else top_gen ;
+          top_gen = $defexpr;
+          # --file arguments can be a lambda producing a record too
+          top = if builtins.typeOf top_gen == "lambda" then
+                  top_gen {}
+                else top_gen;
+          names = [ $paths ];
+          # Returns attr.name calling it if it's a function
+          autocall = attr: name:
+            let
+              setOrLambda = builtins.getAttr name attr;
+            in
+              if builtins.isFunction setOrLambda then
+                 setOrLambda {}
+              else
+                setOrLambda;
+          result = if names == [] then
+                     top
+                   else
+                     builtins.foldl' autocall top names;
         in
-            if builtins.typeOf $prefixed_path == "set" then
-                builtins.attrNames $prefixed_path
-            else
-                ""
+          if builtins.isAttrs result then
+            builtins.attrNames result
+          else
+            ""
 NIX_FILE
     ))
 
