@@ -1,0 +1,10 @@
+#autoload
+
+if [[ $NIX_ZSH_COMPLETIONS_LOG_FILE ]]; then
+    function __nix_log () {
+        print -l -- $* >> $NIX_ZSH_COMPLETIONS_LOG_FILE
+    }
+    __nix_log $*
+else
+    function __nix_log() {}
+fi
